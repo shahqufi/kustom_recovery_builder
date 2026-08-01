@@ -232,21 +232,4 @@ jobs:
         echo "Done checking missing dependencies. Review, and reconfigure your tree."
       continue-on-error: true
 
-    - name: Notify Telegram — Build Done
-      if: success()
-      run: |
-        .github/scripts/send_to_telegram.sh \
-          "release" \
-          "${{ github.event.inputs.DEVICE_NAME }}" \
-           "${{ github.event.inputs.MANIFEST_BRANCH }}" \
-           "${{ env.BUILD_DATE }}" \
-           "${{ env.COMMIT_ID }}" \
-           "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.run_id }}" \
-           "${{ env.CLEAN_DEVICE_TREE }}" \
-           "${{ secrets.TELEGRAM_CHAT_ID }}" \
-           "${{ secrets.TELEGRAM_TOKEN }}" \
-           "${{ github.workflow }}" \
-           "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-           "${{ secrets.GITHUB_TOKEN }}" \
-           "${{ github.repository }}" \
-           "${{ github.run_id }}"
+
