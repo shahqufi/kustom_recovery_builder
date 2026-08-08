@@ -134,14 +134,25 @@ jobs:
     - name: Check Build Makefile
       run: |
         cd android-recovery
-        if [ -f ${{ github.event.inputs.DEVICE_PATH }}/twrp_${{ github.event.inputs.DEVICE_NAME}}.mk ]; then
-            echo "DEVICE_MAKEFILE=twrp_${{ github.event.inputs.DEVICE_NAME }}" >> $GITHUB_ENV
-        elif [ -f ${{ github.event.inputs.DEVICE_PATH }}/omni_${{ github.event.inputs.DEVICE_NAME}}.mk ]; then
-            echo "DEVICE_MAKEFILE=omni_${{ github.event.inputs.DEVICE_NAME }}" >> $GITHUB_ENV
+
+        echo "Checking device tree..."
+        echo "DEVICE_PATH=${{ github.event.inputs.DEVICE_PATH }}"
+        echo "DEVICE_NAME=${{ github.event.inputs.DEVICE_NAME }}"
+
+        if [ -f "${{ github.event.inputs.DEVICE_PATH }}/twrp_${{ github.event.inputs.DEVICE_NAME }}.mk" ]; then
+          export DEVICE_MAKEFILE="twrp_${{ github.event.inputs.DEVICE_NAME }}"
+        elif [ -f "${{ github.event.inputs.DEVICE_PATH }}/omni_${{ github.event.inputs.DEVICE_NAME }}.mk" ]; then
+          export DEVICE_MAKEFILE="omni_${{ github.event.inputs.DEVICE_NAME }}"
         else
-            echo "No recovery makefile file found!"
+          echo "ERROR: No recovery makefile found!"
+          echo "Expected one of:"
+          echo "  ${{ github.event.inputs.DEVICE_PATH }}/twrp_${{ github.event.inputs.DEVICE_NAME }}.mk"
+          echo "  ${{ github.event.inputs.DEVICE_PATH }}/omni_${{ github.event.inputs.DEVICE_NAME }}.mk"
+          exit 1
         fi
-      continue-on-error: true
+
+        echo "Found recovery makefile: ${DEVICE_MAKEFILE}"
+        echo "DEVICE_MAKEFILE=${DEVICE_MAKEFILE}" >> "$GITHUB_ENV"
 
     - name: libncurse5
       if: github.event.inputs.MANIFEST_BRANCH != 'twrp-11' && github.event.inputs.MANIFEST_BRANCH != 'twrp-12.1'
