@@ -209,8 +209,10 @@ jobs:
       if: github.event.inputs.BUILD_TARGET == 'vendorboot'
       run: |
         cd android-recovery
-        find out -name adaptive-ts.ko
-        md5sum $(find out -name adaptive-ts.ko | head -n 1)
+        echo "Searching adaptive-ts.ko..."
+        find out -name adaptive-ts.ko -exec ls -lh {} \;
+        echo "MD5 checksums:"
+        find out -name adaptive-ts.ko -exec md5sum {} \;
 
     - name: Upload to Release (boot and recovery)
       if: github.event.inputs.BUILD_TARGET == 'boot' || github.event.inputs.BUILD_TARGET == 'recovery'
