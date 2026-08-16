@@ -228,21 +228,21 @@ jobs:
           Commit: Most recent [commit](${{ env.CLEAN_DEVICE_TREE }}/commit/${{ env.COMMIT_ID }}) during building.
       continue-on-error: true
 
-    - name: Collect adaptive-ts module
-      if: github.event.inputs.BUILD_TARGET == 'vendorboot'
-      run: |
-        cd android-recovery
-
-        echo "Searching adaptive-ts.ko..."
-        find out -name adaptive-ts.ko
-
-        mkdir -p ../artifacts
-
-        cp $(find out -name adaptive-ts.ko | head -n 1) ../artifacts/adaptive-ts.ko
-
-        echo "Checking adaptive-ts.ko:"
-        ls -lh ../artifacts/adaptive-ts.ko
-        md5sum ../artifacts/adaptive-ts.ko
+#    - name: Collect adaptive-ts module
+#      if: github.event.inputs.BUILD_TARGET == 'vendorboot'
+#      run: |
+#        cd android-recovery
+#
+#        echo "Searching adaptive-ts.ko..."
+#        find out -name adaptive-ts.ko
+#
+#        mkdir -p ../artifacts
+#
+#        cp $(find out -name adaptive-ts.ko | head -n 1) ../artifacts/adaptive-ts.ko
+#
+#        echo "Checking adaptive-ts.ko:"
+#        ls -lh ../artifacts/adaptive-ts.ko
+#        md5sum ../artifacts/adaptive-ts.ko
       
     - name: Upload to Release (if vendor_boot)
       if: github.event.inputs.BUILD_TARGET == 'vendorboot'
