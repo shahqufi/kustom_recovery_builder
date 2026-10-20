@@ -1,4 +1,4 @@
-name: OrangeFox [OFRP] v2
+name: OrangeFox [OFRP]
 
 on:
   workflow_dispatch:
@@ -63,9 +63,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Fast Disk Clean-up & Swap Space (24GB)
+    - name: Clean-up & Swap Space
       run: |
-        # Delete heavy pre-installed directories in parallel (~10s vs 4m)
         sudo rm -rf /usr/share/dotnet &
         sudo rm -rf /usr/local/lib/android &
         sudo rm -rf /opt/ghc &
@@ -74,14 +73,16 @@ jobs:
         wait
         df -h
 
-        # Allocate 24GB swap instantly using fallocate and lower swappiness to prioritize RAM
+        sudo swapoff -a
+        sudo rm -f /swapfile
         sudo fallocate -l 24G /swapfile
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
         sudo sysctl vm.swappiness=10
+        free -h
 
-    - name: Environment Setup
+    - name: Build Environment
       run: |
         sudo apt-get update -y
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -130,7 +131,7 @@ jobs:
           "" \
           ""
 
-    - name: Set-up & Sync Manifest
+    - name: Set-up Manifest
       if: github.event.inputs.MANIFEST_BRANCH == '11.0' || github.event.inputs.MANIFEST_BRANCH == '12.1' || github.event.inputs.MANIFEST_BRANCH == '14.1'
       run: |
         mkdir -p ${GITHUB_WORKSPACE}/OrangeFox
@@ -141,7 +142,6 @@ jobs:
         git clone --depth=1 https://gitlab.com/OrangeFox/sync.git
         cd sync
 
-        # Patch orangefox_sync.sh to force shallow clones, skip darwin/mips prebuilts, and use max parallel jobs
         sed -i 's/repo init/repo init --depth=1 -g default,-mips,-darwin,-notdefault/g' orangefox_sync.sh
         sed -i 's/repo sync/repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j$(nproc --all)/g' orangefox_sync.sh
 
