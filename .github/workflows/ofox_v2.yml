@@ -88,12 +88,16 @@ jobs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
           aria2 bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
           git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev \
-          liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev \
-          libxml2 libxml2-utils lzop pngcrush python-is-python3 rsync \
+          libelf-dev libncurses6 libncurses-dev libsdl1.2-dev libssl-dev \
+          libxml2 libxml2-utils lz4 lzop pngcrush python-is-python3 rsync \
           schedtool squashfs-tools xsltproc zip zlib1g-dev
+
+        # Symlink libncurses5/libtinfo5 for older AOSP prebuilt toolchains on Ubuntu 24.04
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+
         sudo curl -sLo /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
         sudo chmod a+rx /usr/local/bin/repo
-      continue-on-error: true
 
     - name: Restore ccache
       uses: actions/cache@v4
@@ -151,93 +155,4 @@ jobs:
     - name: Clone Device Tree
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        git clone --depth=1 --single-branch ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
-        cd ${{ github.event.inputs.DEVICE_PATH }}
-        echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
-      continue-on-error: true
-
-    - name: Building OrangeFox
-      run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        set +e
-        source build/envsetup.sh
-        export ALLOW_MISSING_DEPENDENCIES=true
-        set -e
-
-        if [ "${{ github.event.inputs.MANIFEST_BRANCH }}" = "14.1" ]; then
-          lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-ap2a-eng
-        else
-          lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-eng
-        fi
-
-        mka adbd ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
-        ccache -s
-      continue-on-error: true
-
-    - name: Set Build Date
-      run: |
-        echo "BUILD_DATE=$(TZ=Asia/Manila date +%Y%m%d)" >> $GITHUB_ENV
-
-    - name: Check if Recovery Exist
-      run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        if compgen -G "out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.img" > /dev/null; then
-            echo "CHECK_IMG_IS_OK=true" >> $GITHUB_ENV
-            echo "MD5_IMG=$(md5sum out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.img | cut -d ' ' -f 1)" >> $GITHUB_ENV
-        else
-            echo "Recovery out directory is empty."
-        fi
-        if compgen -G "out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.zip" > /dev/null; then
-            echo "CHECK_ZIP_IS_OK=true" >> $GITHUB_ENV
-            echo "MD5_ZIP=$(md5sum out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.zip | cut -d ' ' -f 1)" >> $GITHUB_ENV
-        else
-            echo "Recovery out directory is empty."
-        fi
-      continue-on-error: true
-
-    - name: Upload to Release
-      if: env.CHECK_IMG_IS_OK == 'true' && env.CHECK_ZIP_IS_OK == 'true'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.img
-          OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/OrangeFox*.zip
-        name: Unofficial OrangeFox for ${{ github.event.inputs.DEVICE_NAME }} // ${{ env.BUILD_DATE }}
-        tag_name: ${{ github.run_id }}
-        body: |
-          Build: ${{ github.event.inputs.MANIFEST_BRANCH }}
-          Device: [Device Tree/Branch](${{ github.event.inputs.DEVICE_TREE }}/tree/${{ github.event.inputs.DEVICE_TREE_BRANCH }})
-          Commit: Most recent [commit](${{ github.event.inputs.DEVICE_TREE }}/commit/${{ env.COMMIT_ID }}) during building.
-          MD5 (img): ${{ env.MD5_IMG }}
-          MD5 (zip): ${{ env.MD5_ZIP }}
-      continue-on-error: true
-
-    - name: Run LDCheck
-      if: github.event.inputs.LDCHECK == 'true'
-      run: |
-        cd tools
-        mv -n libneeds ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recovery/root/
-        mv -n ldcheck ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recovery/root/
-        cd ../OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recovery/root
-        python3 ldcheck -p system/lib64:vendor/lib64:system/lib:vendor/lib -d ${{ github.event.inputs.LDCHECKPATH }}
-        echo "Done checking missing dependencies. Review, and reconfigure your tree."
-      continue-on-error: true
-
-    - name: Notify Telegram — Build Done
-      if: success()
-      run: |
-        .github/scripts/send_to_telegram.sh \
-          "release" \
-          "${{ github.event.inputs.DEVICE_NAME }}" \
-          "${{ github.event.inputs.MANIFEST_BRANCH }}" \
-          "${{ env.BUILD_DATE }}" \
-          "${{ env.COMMIT_ID }}" \
-          "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.run_id }}" \
-          "${{ env.CLEAN_DEVICE_TREE }}" \
-          "${{ secrets.TELEGRAM_CHAT_ID }}" \
-          "${{ secrets.TELEGRAM_TOKEN }}" \
-          "${{ github.workflow }}" \
-          "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          "${{ secrets.GITHUB_TOKEN }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+        git clone --depth=1 --single-branch ${{ github.event.inputs.DEVICE_TREE }} -b${{
